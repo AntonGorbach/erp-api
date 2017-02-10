@@ -1,0 +1,133 @@
+= TabaTa ERP API
+MelKori <mieldo@gmail.com>
+0, 2017-02-21 (0.99.3): BE ERP API
+:toc: right
+:toclevels: 4
+{empty}
+
+== Общая информация
+
+Агентский API предназначен для интеграции ERP систем бизнес-агентов в сервисы TabaTa.
+
+Для подключения к системе необходимо:
+
+* иметь регистрационную запись в системе с установленным признаком **agent**
+* ID учетной записи агента (UUID)
+* Уникальный токен и пароль (или одноразовый сессионный код) для клиентского подключения (передаются в заголовке для Basic Auth)
+
+При подключении в индифидуальном профиле создается реестр правил/классификатор обработки ТТН для каждой группы агентов (agent class) в зависимости от особенностей их данных, чтобы облегчить интеграцию.
+
+== API
+
+=== Посылки
+
+==== Создание посылки
+
+[horizontal]
+protocol_method:: POST
+method_name:: agent/parcel
+method_params:: new
+request_body:: {"order_id": "<MK Order ID>", "receiver": { "id": "<MK User ID>", "phone": <PHONE 380XXYYYYYYY>, "email" : "<USER EMAIL>", "first name" : <FIRST NAME>, "last_name": "<LAST NAME>"}, "dest" : [ <LATITUDE>, <LONGITUDE>], "weight" : <WEIGHT GRAM as INTEGER>, "price" : <PRICE as DECIMAL(10,2)>, "type" : "<TYPE CODE>", "note" : "<USER NOTE>", "created_at": "<TIMESTAMP UTC>", "agent" : "<USER ID>", "contragent_id" : <CONTRAGENT ID>, "dimensions": [<WIDTH>, <HEIGHT>, <DEPTH>], "_comment" : "<SENDER's comment>"}
+expected_result:: 202 {"success": true, "id" : "<PARSEL ID>"}
+
+NOTE: ключи `contragent_id`, `dimensions`, `_comment` -- опциональны
+
+==== Получение кодов
+
+[horizontal]
+protocol_method:: GET
+method_name:: agent/parcel/codes
+method_params:: <PARCEL ID>
+request_body:: ----
+expected_result:: 200 {"success": true, "qr" : "<QR body>", "bcode" : "<CODE128>"}
+
+==== Состояние посылки
+
+[horizontal]
+protocol_method:: GET
+method_name:: agent/parcel/track
+method_params:: <PARCEL ID>
+request_body:: ----
+expected_result:: 200 {"success": true, "geo" : [ <LATITUDE>, <LONGITUDE>], "code" : "<CODE ID>", "state_desc" : "<STATE DESCR>", "modified_at" : "<TIMESTAMP UTC>"}
+
+==== История изменения состояний
+
+[horizontal]
+protocol_method:: GET
+method_name:: agent/parcel/log
+method_params:: <PARCEL ID>
+request_body:: ----
+expected_result:: 200 {"success": true, "<TIMESTAMP UTC>" : { "geo" : [ <LATITUDE>, <LONGITUDE>], "code" : "<CODE ID>", "state_desc" : "<STATE DESCR>"}, ...}
+
+==== История изменения состояний всех посылок
+
+[horizontal]
+protocol_method:: GET
+method_name:: agent/parcel/
+method_params:: logs
+get_params:: ts_from=<TIMESTAMP UTC> [, ts_to=<TIMESTAMP UTC>, state=<PARCEL STATE>]
+request_body:: ----
+expected_result:: 200 {"success": true, "logs": [{"id": <PARCEL ID>, "<TIMESTAMP UTC>" : { "geo" : [ <LATITUDE>, <LONGITUDE>], "code" : "<CODE ID>", "state_desc" : "<STATE DESCR>"}, ...}, {"id": <PARCEL_ID>, <TIMESTAMP UTC>: {...}, ...}, ...]
+
+NOTE: Временные параметры `ts_from`, `ts_to` задаются в формате timestamp UTS *in miliseconds*.
+
+==== Запрос на изменение
+
+[horizontal]
+protocol_method:: PUT
+method_name:: agent/parcel/alter
+method_params:: <PARCEL ID>
+request_body:: { "receiver": { "id": "<ERP Native User ID>", "phone": <PHONE 380XXYYYYYYY>, "email" : "<USER EMAIL>", "first name" : <FIRST NAME>, "last_name": "<LAST NAME>"}, "dest" : [ <LATITUDE>, <LONGITUDE>], "weight" : <WEIGHT GRAM as INTEGER>, "price" : <PRICE as DECIMAL(10,2)>, "type" : "<TYPE CODE>", "note" : "<USER NOTE>", "contragent_id" : <CONTRAGENT ID>, "dimensions": [<WIDTH>, <HEIGHT>, <DEPTH>], "_comment" : "<SENDER's comment>"}
+expected_result:: 202 {"success": true}
+
+NOTE: Все ключи -- опциональны.
+
+IMPORTANT: Изменения применимы только для состояния `Заявка зарегистрирована в системе` (`state == PU0000`)
+
+==== Подтверждение платежа
+
+[horizontal]
+protocol_method:: PUT
+method_name:: agent/parcel/paid
+method_params:: <PARCEL ID>
+request_body:: { "amount": <PRICE as DECIMAL(10,2)>}
+expected_result:: 202 {"success": true}
+
+IMPORTANT: Изменения не применимы для состояния `Доставлено` (`state == PU0007`)
+
+=== Контрагенты
+
+==== Регистрация контрагента
+
+[horizontal]
+protocol_method:: POST
+method_name:: agent/contragent
+method_params:: ----
+request_body:: {"name": "<CONTRAGENT NAME>", "reg_id": "<REGISTRATION ID>", "tax_id": "<TAX ID>", "vat": <VALUE ADDED TAX (INT(%))>, "bank_name": "<BANK NAME>", "bank_mfo": "<BANK MFO CODE>", "bank_account": "<ACCOUNT ID>"}
+expected_result:: 200 {"success": true, "id" : "<CONTRAGENT ID>"}
+
+[NOTE]
+====
+
+Параметры: `reg_id` -- код ЕДРПОУ контрагента, `tax_id` -- ИНН контрагента, `vat` - ставка НДС в процентах. `vat == 0` -- эквивалент `без НДС`
+
+====
+
+==== Информация об контрагенте
+
+[horizontal]
+protocol_method:: GET
+method_name:: agent/contragent
+method_params:: <CONTRAGENT ID>
+request_body:: ----
+expected_result:: 200 {"success": true, "name": "<CONTRAGENT NAME>", "reg_id": "<REGISTRATION ID>", "tax_id": "<TAX ID>", "vat": <VALUE ADDED TAX INT(%)>, "bank_name": "<BANK NAME>", "bank_mfo": "<BANK MFO CODE>", "bank_account": "<ACCOUNT ID>"}
+
+
+==== Справочник контрагентов
+
+[horizontal]
+protocol_method:: GET
+method_name:: agent/contragent
+method_params:: list
+request_body:: ----
+expected_result:: 200 {"success": true, "contragents": [{"id": "<CONTRAGENT ID>", "name": "<CONTRAGENT NAME>", "reg_id": "<REGISTRATION ID>", "tax_id": "<TAX ID>", "vat": <VALUE ADDED TAX INT(%)>, "bank_name": "<BANK NAME>", "bank_mfo": "<BANK MFO CODE>", "bank_account": "<ACCOUNT ID>"}, {...}, ...]}
