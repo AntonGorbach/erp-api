@@ -113,7 +113,7 @@ expected_result:: 200 {"success": true, "id" : "<CONTRAGENT ID>"}
 
 ====
 
-==== Информация об контрагенте
+==== Информация о контрагенте
 
 [horizontal]
 protocol_method:: GET
